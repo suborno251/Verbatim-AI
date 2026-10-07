@@ -1,36 +1,126 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Verbatim
 
-## Getting Started
+A web application for analyzing legal contracts with strict quote verification, interactive citation highlighting, and clause-level comparison.
 
-First, run the development server:
+Built with Next.js 16 (App Router), React 19, and Tailwind CSS.
 
+---
+
+## Overview
+
+When reviewing legal documents with an LLM, hallucinations and paraphrased quotes pose major risks. Verbatim ensures that every answer is backed by exact text from the source document. Before any citation is presented to the user, an independent verification engine validates that the text exists in the contract, accounts for extraction whitespace artifacts, and maps it directly to the rendered document for instant review.
+
+---
+
+## Features
+
+### 1. Document Upload & Ingestion
+- Supports **PDF** and **DOCX** files with MIME-type validation.
+- **Scanned document detection**: Checks character density across pages. Scanned PDFs with no readable text layer are rejected with a clear message rather than saved as empty documents.
+- Real-time processing feedback during parsing and indexing.
+- Document library to manage, view, and delete uploaded contracts.
+
+### 2. Chat with Grounded Citations
+- Streaming responses with stop generation support (retains generated content).
+- Document-scoped conversation history.
+- **Quote Verification Engine**:
+  - Independent verification: Quotes from model outputs are verified against the raw extracted document before being marked as verified.
+  - Normalization: Handles whitespace variance, line wraps, soft hyphens, and typographic punctuation discrepancies common in PDF extraction.
+  - Unverified quotes are flagged or stripped if the model paraphrased or hallucinated.
+  - If a clause does not exist in the contract, the model explicitly reports its absence rather than guessing.
+
+### 3. Citation Highlighting
+- Clicking a verified citation in chat opens the document viewer, jumps to the exact page, and highlights the relevant passage.
+- Handles multi-line quotes and clauses that span across page boundaries.
+
+### 4. Large Document Handling (150+ Pages)
+- Hierarchical document parsing (Articles / Sections / Clauses) combined with hybrid retrieval (lexical/BM25 + vector).
+- Prevents false-negative assertions: For presence/absence queries, the system inspects full section indexes rather than truncated context windows.
+
+### 5. Multi-Document Questions
+- Query multiple contracts simultaneously (e.g. comparing indemnity or termination provisions across agreements).
+- Quotes are attributed and verified individually against their respective source documents.
+
+### 6. Document Comparison
+- Clause-level diffing between two contract versions (rather than raw character diffs).
+- Substantive impact assessment: Categorizes changes by legal significance (High, Medium, Low) rather than purely textual revisions.
+
+### 7. Agentic Document Research (Part C)
+- Autonomous research loop using defined tools (`search_document`, `get_section`, `list_clauses`).
+- Live activity feed showing search progression.
+- Hard iteration cap with graceful recovery against malformed tool calls.
+
+---
+
+## Screenshots
+
+<!-- Add screenshots here -->
+| Screen | Description |
+|---|---|
+| *Upload & Library* | Document manager with scanned PDF detection |
+| *Chat & Verified Quotes* | Streaming response with verified quote badges |
+| *Citation Highlighting* | Synchronized document viewer highlighting clicked quote |
+| *Document Comparison* | Clause-level diff with significance filtering |
+
+---
+
+## Local Setup
+
+### Prerequisites
+- Node.js 20+
+- npm (or pnpm / yarn)
+
+### 1. Clone repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone git@github.com-work:suborno251/Verbatim-AI.git
+cd Verbatim-AI
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Configure environment variables
+Create a `.env.local` file in the project root:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+# AI Provider Configuration (OpenAI, OpenRouter, Anthropic, Gemini, or local)
+AI_API_KEY=your_api_key_here
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
+```
 
-## Learn More
+### 4. Run the development server
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Implementation Details
 
-## Deploy on Vercel
+### How Quote Verification Works
+1. **Extraction Normalization**: The raw extracted text is tokenized and stored alongside an index of character spans and page offsets.
+2. **Quote Normalization**: Incoming quotes from model responses are lowercased, with normalized whitespace and stripped punctuation variations (e.g. smart quotes, line-break hyphens).
+3. **Sliding Window Matching**: The engine checks for an exact normalized match. If extraction introduced minor discrepancies, a token sliding-window algorithm checks for high-confidence overlap (>= 95%).
+4. **Offset Resolution**: Once matched, the engine returns the exact page number and bounding character ranges to the UI viewer. If no match is found, the quote is flagged as unverified.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Failure Cases & Limitations
+- **Poor OCR / Damaged PDFs**: If text extraction returns garbled characters or out-of-order text blocks (e.g. multi-column layouts), token matching may fail to locate a quote despite the clause existing visually.
+- **Extreme Paraphrasing**: If an LLM heavily rewords a clause instead of extracting verbatim text, the verification engine will reject the quote as unverified.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Project Status
+
+- [x] Project scaffolding (Next.js 16, React 19, Tailwind CSS)
+- [x] Architecture design & verification engine specification
+- [ ] Document upload & scanned PDF validation
+- [ ] Quote verification engine implementation
+- [ ] Document viewer with synchronized citation highlighting
+- [ ] Multi-document chat
+- [ ] Contract version comparison
+- [ ] Part C: Agentic document research loop
