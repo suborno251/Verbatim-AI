@@ -118,9 +118,39 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - [x] Project scaffolding (Next.js 16, React 19, Tailwind CSS)
 - [x] Architecture design & verification engine specification
-- [ ] Document upload & scanned PDF validation
-- [ ] Quote verification engine implementation
-- [ ] Document viewer with synchronized citation highlighting
-- [ ] Multi-document chat
-- [ ] Contract version comparison
-- [ ] Part C: Agentic document research loop
+- [x] Document upload & scanned PDF validation (PDF & DOCX, OCR density check)
+- [x] Document-scoped chat history persistence (reopening conversations per contract)
+- [x] Quote verification engine implementation (canonical matching, sliding-window fallback, cross-page verification)
+- [x] Document viewer with synchronized citation highlighting and auto-scrolling
+- [x] Multi-document chat (simultaneous cross-contract analysis with source attribution)
+- [x] Contract version comparison (clause-level diff with High/Medium/Low legal risk classification)
+- [x] Part C: Agentic document research loop (`search_document`, `get_section`, `list_clauses` with live activity feed & hard round cap)
+
+---
+
+## Technical Note & Evaluation Overview (Submission Note)
+
+### 1. How Quote Verification Works and Where It Could Fail
+Our verification engine decouples LLM generation from factual citation validation:
+- **Canonical Pass**: Incoming citations from `<quote doc="...">` are stripped of soft hyphens (`\u00AD`), zero-width spaces, and PDF typographical ligatures (`ff`, `fi`, `fl`). Whitespace is collapsed to single spaces and lowercase. If an exact canonical substring exists on any page, the quote is immediately verified with 100% confidence.
+- **Sliding-Window Token Pass**: When PDF text extraction introduces line-break artifacts, hyphenation differences, or footnote interruptions, a sliding token-window algorithm evaluates token overlap against extracted page tokens with character offsets. Overlaps exceeding 90% confidence are verified and mapped to their exact source character spans.
+- **Cross-Page Pass**: Quotes spanning across page breaks are evaluated over consecutive page boundaries.
+- **Failure Cases**:
+  - *Severe OCR Degradation*: In scanned documents where visual text is noisy or broken into irregular characters, token extraction may fragment words, causing sliding-window matching to reject genuine visual text.
+  - *Extreme Model Paraphrasing*: If the LLM significantly summarizes or rewords a clause instead of extracting verbatim wording, the engine strictly rejects the quote as unverified (shown in red) to protect legal diligence.
+
+### 2. Large Document Strategy (150+ Pages)
+- **Hierarchical Chunking**: Ingestion parses contracts into logical structures (Articles, Sections, and Clauses) mapped to specific page offsets.
+- **Preventing False-Negative Assertions**: Large contracts cannot be arbitrarily truncated into a small prompt without introducing catastrophic false negatives (e.g., claiming a clause is absent because only pages 1–30 were read). Verbatim passes complete section outlines alongside query-matched sections, with explicit system instructions prohibiting negative assertions unless the full contract index confirms absence.
+
+### 3. Part C Choice: Agentic Document Research
+- **Selection**: We chose **Option 2 (Agentic Document Research)** because real-world legal due diligence is iterative—attorneys search an index, locate specific articles, and drill into defined terms.
+- **Implementation**: We equipped the model with three autonomous tools: `list_clauses()`, `search_document(query)`, and `get_section(sectionIdentifier)`.
+- **Live Activity Feed**: Rather than a static spinner, the frontend displays a real-time event trace (`event: step`) indicating tool calls and findings as they occur.
+- **Guardrails**: A strict 6-round iteration limit prevents runaway loops. A universal tool router gracefully normalizes parameter aliases and catches malformed calls, feeding diagnostic feedback back to the agent without crashing.
+- **Hardest Challenge**: Ensuring the agent smoothly transitions from tool exploration to final grounded synthesis while retaining exact verbatim quotation tags for post-verification.
+
+### 4. Roadmap (Next Steps With More Time)
+- **Word Tracked Changes (.docx Redlining)**: Applying Word OpenXML revision markers (`w:ins`, `w:del`) so lawyers can download .docx contracts with directly acceptable redlines.
+- **PII & Entity Anonymization**: Automated masking of counterparty names, executives, and financial figures with consistent placeholders (`[PARTY_A]`, `[CONSIDERATION_AMOUNT]`) and reversible mapping tables.
+- **Export Due Diligence Memos**: One-click PDF/Word export bundling executive summaries alongside every verified citation and page excerpt.
